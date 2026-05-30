@@ -26,5 +26,7 @@ async def review(request: ReviewRequest):
         diff = get_pr_diff(request.pr_url)
         issues = review_pr(diff)
         return ReviewResponse(issues=issues, diff_length=len(diff))
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
