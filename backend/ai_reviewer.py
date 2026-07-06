@@ -1,34 +1,40 @@
 import os
 from dotenv import load_dotenv
 import anthropic
+from config import ReviewConfig
 
 load_dotenv()
 
-PROMPT_TEMPLATE = """You are an expert code reviewer. Analyze the following pull request diff and provide a structured review.
+def build_prompt(diff: str, config: ReviewConfig) -> str:
+    return f"""You are an expert code reviewer. Analyze the following pull request diff.
 
-For each issue found, respond in this exact format:
+    Return no more than {config.max_issues} most important issues found.
+    Prioritize by severity: critical bugs first, then warnings, then suggestions.
 
-ISSUE: <brief title>
-SEVERITY: <critical | warning | suggestion>
-FILE: <filename>
-EXPLANATION: <what the problem is and why it matters>
-FIX: <concrete suggestion how to fix it>
----
+    For each issue, respond in this exact format:
 
-Focus on:
-- Bugs and logic errors (critical)
-- Security vulnerabilities (critical)
-- Performance problems (warning)
-- Code style and readability (suggestion)
+    ISSUE: <brief title>
+    SEVERITY: <critical | warning | suggestion>
+    FILE: <filename>
+    LINE: <line number from the diff where the issue is, or 0 if not specific>
+    EXPLANATION: <what the problem is and why it matters>
+    FIX: <concrete suggestion how to fix it>
+    ---
 
-If the code looks good, write: NO_ISSUES_FOUND
+    Focus on:
+    - Bugs and logic errors (critical)
+    - Security vulnerabilities (critical)
+    - Performance problems (warning)
+    - Code style and readability (suggestion)
 
-Here is the diff:
+    If the code looks good, write: NO_ISSUES_FOUND
 
-{diff}
-"""
+    Here is the diff:
 
-def review_pr(diff: str) -> list[dict]:
+    {diff}
+    """
+
+def review_pr(diff: str, config: ReviewConfig) -> list[dict]:
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     message = client.messages.create(
@@ -37,7 +43,7 @@ def review_pr(diff: str) -> list[dict]:
         messages=[
             {
                 "role": "user",
-                "content": PROMPT_TEMPLATE.format(diff=diff)
+                "content": build_prompt(diff, config)
             }
         ]
     )
@@ -67,6 +73,9 @@ def parse_review(raw_text: str) -> list[dict]:
                 issue["severity"] = line.replace("SEVERITY:", "").strip()
             elif line.startswith("FILE:"):
                 issue["file"] = line.replace("FILE:", "").strip()
+            elif line.startswith("LINE:"):
+                raw = line.replace("LINE:", "").strip()
+                issue["line"] = int(raw) if raw.isdigit() else 0
             elif line.startswith("EXPLANATION:"):
                 issue["explanation"] = line.replace("EXPLANATION:", "").strip()
             elif line.startswith("FIX:"):
