@@ -67,6 +67,8 @@ def parse_review(raw_text: str) -> list[dict]:
 
         issue = {}
         for line in block.splitlines():
+            line = line.strip();
+            
             if line.startswith('ISSUE:'):
                 issue['title'] = line.replace("ISSUE:", "").strip()
             elif line.startswith("SEVERITY:"):
