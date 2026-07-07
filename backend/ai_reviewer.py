@@ -5,10 +5,10 @@ from config import ReviewConfig
 
 load_dotenv()
 
-def build_prompt(diff: str, config: ReviewConfig) -> str:
+def build_prompt(diff: str, max_issues: int) -> str:
     return f"""You are an expert code reviewer. Analyze the following pull request diff.
 
-    Return no more than {config.max_issues} most important issues found.
+    Return no more than {max_issues} most important issues found.
     Prioritize by severity: critical bugs first, then warnings, then suggestions.
 
     For each issue, respond in this exact format:
@@ -43,7 +43,7 @@ def review_pr(diff: str, config: ReviewConfig) -> list[dict]:
         messages=[
             {
                 "role": "user",
-                "content": build_prompt(diff, config)
+                "content": build_prompt(diff, config.max_issues)
             }
         ]
     )
@@ -53,10 +53,10 @@ def review_pr(diff: str, config: ReviewConfig) -> list[dict]:
     if "NO_ISSUES_FOUND" in raw_text:
         return []
 
-    return parse_review(raw_text)
+    return parse_review(raw_text, config)
 
 
-def parse_review(raw_text: str) -> list[dict]:
+def parse_review(raw_text: str, config: ReviewConfig) -> list[dict]:
     issues = []
     blocks = raw_text.strip().split('---')
 
@@ -68,7 +68,7 @@ def parse_review(raw_text: str) -> list[dict]:
         issue = {}
         for line in block.splitlines():
             line = line.strip();
-            
+
             if line.startswith('ISSUE:'):
                 issue['title'] = line.replace("ISSUE:", "").strip()
             elif line.startswith("SEVERITY:"):
@@ -86,5 +86,5 @@ def parse_review(raw_text: str) -> list[dict]:
         if 'title' in issue:
             issues.append(issue)
 
-    return issues
+    return issues[:config.max_issues]
 
