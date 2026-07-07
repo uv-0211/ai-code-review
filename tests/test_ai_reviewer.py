@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from ai_reviewer import review_pr, parse_review
 from config import ReviewConfig
 

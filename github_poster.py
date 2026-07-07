@@ -12,7 +12,7 @@ SEVERITY_EMOJI = {
     "suggestion": "💡",
 }
 
-def _already_reviewed(pull, iteration: int) -> bool:
+def _is_reviewed(pull, iteration: int) -> bool:
     count = 0
 
     for comment in pull.get_issue_comments():
@@ -30,7 +30,7 @@ def post_review(pr_url: str, issues: list[dict], iteration: int = 1) -> dict:
     repository = g.get_repo(f"{owner}/{repo_name}")
     pull = repository.get_pull(pr_number)
 
-    if _already_reviewed(pull, iteration):
+    if _is_reviewed(pull, iteration):
         return { 
             "posted": False,
             "reason": f"Iteration limit reached (max {iteration})"

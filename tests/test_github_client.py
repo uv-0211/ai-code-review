@@ -4,6 +4,8 @@ from github import GithubException
 from dataclasses import dataclass
 from github_client import parse_pr_url, get_pr_diff
 
+PR_URL = "https://github.com/owner/repo/pull/1"
+
 @dataclass
 class MockFile:
     filename: str
@@ -39,7 +41,7 @@ def test_get_pr_diff_normal(mock_github):
     mock_file = MockFile("src/auth.py", "@@ -1,3 +1,4 @@\n+new line")
     setup_mock_pr(mock_github, [mock_file])
 
-    diff = get_pr_diff("https://github.com/owner/repo/pull/1")
+    diff = get_pr_diff(PR_URL)
 
     assert "src/auth.py" in diff
     assert "@@ -1,3 +1,4 @@" in diff
@@ -50,7 +52,7 @@ def test_get_pr_diff_skips_binary_files(mock_github):
     text_file = MockFile("src/main.py", "@@ -1 +1 @@\n+code")
     setup_mock_pr(mock_github, [binary_file, text_file])
 
-    diff = get_pr_diff("https://github.com/owner/repo/pull/1")
+    diff = get_pr_diff(PR_URL)
 
     assert "logo.png" not in diff
     assert "src/main.py" in diff
@@ -63,7 +65,7 @@ def test_get_pr_diff_empty_pr():
         MockGithub.return_value.get_repo.return_value.get_pull.return_value = mock_pull
 
         with pytest.raises(ValueError, match="PR is empty"):
-            get_pr_diff("https://github.com/owner/repo/pull/1")
+            get_pr_diff(PR_URL)
 
 
 def test_get_pr_diff_repo_not_found():
@@ -72,7 +74,7 @@ def test_get_pr_diff_repo_not_found():
             404, {"message": "Not Found"}, None
         )
         with pytest.raises(ValueError, match="Repo or PR not found"):
-            get_pr_diff("https://github.com/owner/repo/pull/1")
+            get_pr_diff(PR_URL)
 
 
 def test_get_pr_diff_filters_generated_files(mock_github):
@@ -80,7 +82,7 @@ def test_get_pr_diff_filters_generated_files(mock_github):
     real_file = MockFile("src/app.py", "@@ -1 +1 @@\n+code")
     setup_mock_pr(mock_github, [lock_file, real_file])
 
-    diff = get_pr_diff("https://github.com/owner/repo/pull/1")
-
+    diff = get_pr_diff(PR_URL)
+    
     assert "package-lock.json" not in diff
     assert "src/app.py" in diff
