@@ -2,6 +2,13 @@ from unittest.mock import MagicMock, patch
 from ai_reviewer import review_pr, parse_review
 from config import ReviewConfig
 
+def setup_mock_client(MockClient, text: str):
+    mock_message = MagicMock()
+    mock_message.content = [MagicMock(text=text)]
+
+    MockClient.return_value.messages.create.return_value = mock_message
+
+
 def test_parse_review_returns_issues(sample_claude_response, default_config):
     issues = parse_review(sample_claude_response, default_config)
 
@@ -39,42 +46,31 @@ FIX: Some fix
     assert len(issues) == 1
 
 
-def test_review_pr_returns_issues(sample_diff, sample_claude_response, default_config):
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock(text=sample_claude_response)]
-
-    with patch("ai_reviewer.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = mock_message
-        issues = review_pr(sample_diff, default_config)
+def test_review_pr_returns_issues(mock_client, sample_diff, sample_claude_response, default_config):
+    setup_mock_client(mock_client, sample_claude_response)
+   
+    issues = review_pr(sample_diff, default_config)
 
     assert len(issues) == 2
     assert issues[0]["severity"] == "critical"
 
 
-def test_review_pr_no_issues(sample_diff, default_config):
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock(text="NO_ISSUES_FOUND")]
+def test_review_pr_no_issues(mock_client, sample_diff, default_config):
+    setup_mock_client(mock_client, "NO_ISSUES_FOUND")
 
-    with patch("ai_reviewer.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = mock_message
-        issues = review_pr(sample_diff, default_config)
+    issues = review_pr(sample_diff, default_config)
 
     assert issues == []
 
 
-def test_review_pr_respects_max_issues(sample_diff):
+def test_review_pr_respects_max_issues(mock_client, sample_diff):
     many_issues = "\n---\n".join([
         f"ISSUE: Issue {i}\nSEVERITY: warning\nFILE: main.py\nLINE: {i}\nEXPLANATION: Desc\nFIX: Fix"
         for i in range(5)
     ])
-
-    mock_message = MagicMock()
-    mock_message.content = [MagicMock(text=many_issues)]
-
+    setup_mock_client(mock_client, many_issues)
     config = ReviewConfig(max_issues=3, max_iterations=1)
 
-    with patch("ai_reviewer.anthropic.Anthropic") as MockClient:
-        MockClient.return_value.messages.create.return_value = mock_message
-        issues = review_pr(sample_diff, config)
+    issues = review_pr(sample_diff, config)
 
     assert len(issues) <=3

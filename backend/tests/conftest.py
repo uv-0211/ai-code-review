@@ -1,3 +1,4 @@
+from unittest.mock import patch
 import pytest
 from config import ReviewConfig
 
@@ -53,3 +54,13 @@ LINE: 14
 EXPLANATION: Password is stored without hashing.
 FIX: Hash the password before storing.
 ---"""
+
+@pytest.fixture
+def mock_client():
+    with patch("ai_reviewer.anthropic.Anthropic") as MockClient:
+        yield MockClient
+
+@pytest.fixture
+def mock_github():
+    with patch("github_client.Github") as MockGithub:
+        yield MockGithub
