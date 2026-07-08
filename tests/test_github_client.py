@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 from github import GithubException
 from dataclasses import dataclass
 from app.github.client import GithubClient

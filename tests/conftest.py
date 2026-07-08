@@ -2,7 +2,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from app.github.client import GithubClient
 from app.github.poster import GithubPoster
-from config import ReviewConfig
+from app.config import ReviewConfig
+from app.reviewer.ai_reviewer import AIReviewer
 
 @pytest.fixture
 def default_config():
@@ -57,10 +58,6 @@ EXPLANATION: Password is stored without hashing.
 FIX: Hash the password before storing.
 ---"""
 
-@pytest.fixture
-def mock_client():
-    with patch("ai_reviewer.anthropic.Anthropic") as MockClient:
-        yield MockClient
 
 @pytest.fixture
 def mock_github():
@@ -75,12 +72,18 @@ def github_client(mock_github):
 def mock_github_client():
     return MagicMock()
 
-
 @pytest.fixture
 def github_poster(mock_github_client):
     return GithubPoster(mock_github_client)
 
-
 @pytest.fixture
 def mock_pull():
     return MagicMock()
+
+@pytest.fixture
+def mock_anthropic_client():
+    return MagicMock()
+
+@pytest.fixture
+def ai_reviewer(mock_anthropic_client):
+    return AIReviewer(mock_anthropic_client)
