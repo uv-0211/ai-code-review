@@ -2,6 +2,7 @@ import os
 import re
 from dotenv import load_dotenv
 from github import Github, GithubException
+from github.PullRequest import PullRequest
 
 load_dotenv()
 
@@ -32,14 +33,14 @@ class GithubClient:
         return owner, repo, pr_number
 
 
-    def get_pull_request(self, pr_url: str) -> str:
+    def get_pull_request(self, pr_url: str) -> PullRequest:
         owner, repo, pr_number = self.parse_pr_url(pr_url)
 
         try: 
             repository = self._github.get_repo(f'{owner}/{repo}')
-            pull = repository.get_pull(pr_number)
+            pull_request = repository.get_pull(pr_number)
 
-            return pull
+            return pull_request
         except GithubException as e:
             if e.status == 404:
                 raise ValueError(f"Repo or PR not found: {owner}/{repo}/{pr_number}")
@@ -47,8 +48,8 @@ class GithubClient:
 
 
     def get_pr_diff(self, pr_url: str) -> str:
-        pull = self.get_pull_request(pr_url)
-        files = pull.get_files()
+        pull_request = self.get_pull_request(pr_url)
+        files = pull_request.get_files()
         diff_parts = []
 
         for file in files:

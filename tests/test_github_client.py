@@ -66,14 +66,6 @@ def test_get_pr_diff_empty_pr(mock_github, github_client):
         github_client.get_pr_diff(PR_URL)
 
 
-def test_get_pr_diff_repo_not_found(mock_github, github_client):
-    mock_github.return_value.get_repo.side_effect = GithubException(
-        404, {"message": "Not Found"}, None
-    )
-    with pytest.raises(ValueError, match="Repo or PR not found"):
-        github_client.get_pr_diff(PR_URL)
-
-
 def test_get_pr_diff_filters_generated_files(mock_github, github_client):
     lock_file = MockFile("package-lock.json", "@@ -1 +1 @@\n+something")
     real_file = MockFile("src/app.py", "@@ -1 +1 @@\n+code")
@@ -93,3 +85,54 @@ def test_get_pr_diff_all_files_ignored(mock_github, github_client):
 
     with pytest.raises(ValueError, match="PR is empty"):
         github_client.get_pr_diff(PR_URL)
+
+
+def test_get_pull_request_returns_pull_request(
+    mock_github,
+    github_client,
+    mock_pull
+):
+    mock_repo = MagicMock()
+
+    mock_repo.get_pull.return_value = mock_pull
+    mock_github.return_value.get_repo.return_value = mock_repo
+
+    result = github_client.get_pull_request(PR_URL)
+
+    assert result is mock_pull
+    mock_github.return_value.get_repo.assert_called_once_with("owner/repo")
+    mock_repo.get_pull.assert_called_once_with(1)
+
+
+def test_get_pull_request_repo_not_found(
+    mock_github,
+    github_client,
+):
+    mock_github.return_value.get_repo.side_effect = GithubException(
+        404,
+        {"message": "Not Found"},
+        None,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Repo or PR not found",
+    ):
+        github_client.get_pull_request(PR_URL)
+
+
+def test_get_pull_request_github_api_error(
+    mock_github,
+    github_client,
+):
+    mock_github.return_value.get_repo.side_effect = GithubException(
+        500,
+        {"message": "Internal Server Error"},
+        None,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="GitHub API error: Internal Server Error",
+    ):
+        github_client.get_pull_request(PR_URL)

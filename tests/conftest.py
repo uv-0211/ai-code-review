@@ -1,6 +1,7 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import pytest
 from app.github.client import GithubClient
+from app.github.poster import GithubPoster
 from config import ReviewConfig
 
 @pytest.fixture
@@ -69,3 +70,17 @@ def mock_github():
 @pytest.fixture
 def github_client(mock_github):
     return GithubClient()
+
+@pytest.fixture
+def mock_github_client():
+    return MagicMock()
+
+
+@pytest.fixture
+def github_poster(mock_github_client):
+    return GithubPoster(mock_github_client)
+
+
+@pytest.fixture
+def mock_pull():
+    return MagicMock()
