@@ -1,5 +1,6 @@
 from unittest.mock import patch
 import pytest
+from app.github.client import GithubClient
 from config import ReviewConfig
 
 @pytest.fixture
@@ -62,5 +63,9 @@ def mock_client():
 
 @pytest.fixture
 def mock_github():
-    with patch("github_client.Github") as MockGithub:
+    with patch("app.github.client.Github") as MockGithub:
         yield MockGithub
+
+@pytest.fixture
+def github_client(mock_github):
+    return GithubClient()
