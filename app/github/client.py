@@ -17,6 +17,8 @@ class GithubClient:
 
     def __init__(self):
         token = os.getenv("GITHUB_TOKEN")
+        if not token:
+            raise RuntimeError("GITHUB_TOKEN environment variable is not set")
         self._github = Github(token)
 
 

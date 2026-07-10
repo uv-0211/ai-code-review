@@ -121,7 +121,7 @@ def test_post_review_allows_second_iteration(
     result = github_poster.post_review(
         PR_URL,
         sample_issues,
-        iteration=2,
+        max_iteration=2,
     )
 
     assert result["posted"] is True

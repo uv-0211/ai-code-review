@@ -1,17 +1,22 @@
 import os
 from dotenv import load_dotenv
 import anthropic
+from pydantic import ValidationError
 from app.config import ReviewConfig
+from app.models.review import ReviewIssue, ReviewResponse
 
 load_dotenv()
 
-class AIReviewer:
+class AIReviewer:    
     def __init__(self, client: anthropic.Anthropic | None = None):
         self._client = client or anthropic.Anthropic(
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
 
-    def review_pr(self, diff: str, config: ReviewConfig) -> list[dict]:
+    def review_pr(self, diff: str, config: ReviewConfig) -> list[ReviewIssue]:
+        if not diff:
+            return []
+
         message = self._client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=4096,
@@ -24,45 +29,13 @@ class AIReviewer:
         )
 
         raw_text = message.content[0].text
-
-        if "NO_ISSUES_FOUND" in raw_text:
-            return []
-
-        return self.parse_review(raw_text, config)
-
-
-    @staticmethod
-    def parse_review(raw_text: str, config: ReviewConfig) -> list[dict]:
-        issues = []
-        blocks = raw_text.strip().split('---')
-
-        for block in blocks:
-            block = block.strip()
-            if not block:
-                continue
-
-            issue = {}
-            for line in block.splitlines():
-                line = line.strip()
-
-                if line.startswith('ISSUE:'):
-                    issue['title'] = line.replace("ISSUE:", "").strip()
-                elif line.startswith("SEVERITY:"):
-                    issue["severity"] = line.replace("SEVERITY:", "").strip()
-                elif line.startswith("FILE:"):
-                    issue["file"] = line.replace("FILE:", "").strip()
-                elif line.startswith("LINE:"):
-                    raw = line.replace("LINE:", "").strip()
-                    issue["line"] = int(raw) if raw.isdigit() else 0
-                elif line.startswith("EXPLANATION:"):
-                    issue["explanation"] = line.replace("EXPLANATION:", "").strip()
-                elif line.startswith("FIX:"):
-                    issue["fix"] = line.replace("FIX:", "").strip()
-
-            if 'title' in issue:
-                issues.append(issue)
-
-        return issues[:config.max_issues]
+        
+        try:
+            review = ReviewResponse.model_validate_json(raw_text)
+            review.issues = review.issues[:config.max_issues]
+        except ValidationError as error:
+            raise RuntimeError(f"Claude returned invalid JSON or some fields are missing") from error
+        return review.issues
 
 
     @staticmethod
@@ -72,25 +45,32 @@ class AIReviewer:
         Return no more than {max_issues} most important issues found.
         Prioritize by severity: critical bugs first, then warnings, then suggestions.
 
-        For each issue, respond in this exact format:
+        Return ONLY valid JSON.
+        Do not use markdown.
+        Do not wrap the response in ```json blocks.
 
-        ISSUE: <brief title>
-        SEVERITY: <critical | warning | suggestion>
-        FILE: <filename>
-        LINE: <line number from the diff where the issue is, or 0 if not specific>
-        EXPLANATION: <what the problem is and why it matters>
-        FIX: <concrete suggestion how to fix it>
-        ---
+        Use this structure:
 
-        Focus on:
-        - Bugs and logic errors (critical)
-        - Security vulnerabilities (critical)
-        - Performance problems (warning)
-        - Code style and readability (suggestion)
+        {{
+        "issues": [
+            {{
+            "title": "brief issue title",
+            "severity": "critical | warning | suggestion",
+            "file": "filename",
+            "line": 0,
+            "explanation": "what the problem is and why it matters",
+            "fix": "how to fix it"
+            }}
+        ]
+        }}
 
-        If the code looks good, write: NO_ISSUES_FOUND
+        If there are no issues, return:
 
-        Here is the diff:
+        {{
+        "issues": []
+        }}
+
+        Diff:
 
         {diff}
         """

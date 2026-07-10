@@ -1,103 +1,82 @@
+import json
 from unittest.mock import MagicMock
+import pytest
 from app.config import ReviewConfig
+from app.models.review import ReviewIssue
 from app.reviewer.ai_reviewer import AIReviewer
 
 def mock_claude_response(client, text: str):
     mock_message = MagicMock()
-    mock_message.content = [MagicMock(text=text)]
+    mock_message.content = [
+        MagicMock(text=json.dumps({"issues": text}))
+    ]
 
     client.messages.create.return_value = mock_message
 
 
-def test_parse_review_returns_issues(sample_claude_response, default_config):
-    issues = AIReviewer.parse_review(sample_claude_response, default_config)
-
-    assert len(issues) == 2
-    assert issues[0]["title"] == "SQL Injection vulnerability"
-    assert issues[0]["severity"] == 'critical'
-    assert issues[0]["line"] == 14
-
-
-def test_parse_review_empty_string(default_config):
-    issues = AIReviewer.parse_review("", default_config)
-    assert issues == []
-
-
-def test_parse_review_missing_fields(default_config):
-    raw_text = "SEVERITY: critical\nFILE: main.py\n---"
-
-    issues = AIReviewer.parse_review(raw_text, default_config)
-
-    assert issues == []
-
-
-def test_parse_review_handles_extra_dashes(default_config):
-    raw_text = """ISSUE: Test issue
-SEVERITY: warning
-FILE: main.py
-LINE: 5
-EXPLANATION: Some explanation with --- dashes inside
-FIX: Some fix
----"""
-    issues = AIReviewer.parse_review(raw_text, default_config)
-    assert len(issues) == 1
-
-
-def test_parse_review_respects_max_issues():
-    many_issues = "\n---\n".join([
-        f"ISSUE: Issue {i}\nSEVERITY: warning\nFILE: main.py\nLINE: {i}\nEXPLANATION: Desc\nFIX: Fix"
-        for i in range(5)
-    ])
-    config = ReviewConfig(max_issues=3, max_iterations=1)
-
-    issues = AIReviewer.parse_review(many_issues, config)
-
-    assert len(issues) <=3
-
-
-def test_parse_review_invalid_line_number(
-    default_config,
-):
-    issue = """
-ISSUE: Test
-SEVERITY: warning
-FILE: main.py
-LINE: abc
-EXPLANATION: Problem
-FIX: Fix
-"""
-
-    result = AIReviewer.parse_review(
-        issue,
-        default_config,
-    )
-
-    assert result[0]["line"] == 0
-
-
-def test_review_pr_handles_no_issues_response(
-    ai_reviewer,
+def test_review_pr_returns_issues(
     mock_anthropic_client,
-    sample_diff,
-    default_config,
+    sample_issues, 
+    ai_reviewer, 
+    sample_diff, 
+    default_config
 ):
-    mock_claude_response(mock_anthropic_client, "NO_ISSUES_FOUND")
+    mock_claude_response(mock_anthropic_client, sample_issues)
 
-    result = ai_reviewer.review_pr(
-        sample_diff,
-        default_config,
-    )
-
-    assert result == []
-
-
-def test_review_pr_returns_issues(ai_reviewer, mock_anthropic_client, sample_diff, sample_claude_response, default_config):
-    mock_claude_response(mock_anthropic_client, sample_claude_response)
-   
     issues = ai_reviewer.review_pr(sample_diff, default_config)
 
     assert len(issues) == 2
-    assert issues[0]["severity"] == "critical"
+    assert issues[0].title == "SQL Injection vulnerability"
+    assert issues[0].severity == 'critical'
+    assert issues[0].line == 14
+    assert isinstance(issues[0], ReviewIssue)
+
+
+def test_review_pr_empty_string(ai_reviewer, default_config):
+    issues = ai_reviewer.review_pr("", default_config)
+
+    assert len(issues) == 0
+
+
+@pytest.mark.parametrize("invalid_response", [
+    [{ "severity": "critical"}],
+    "[",
+])
+def test_review_pr_invalid_response(
+    mock_anthropic_client,
+    ai_reviewer, 
+    sample_diff, 
+    default_config,
+    invalid_response
+):
+    mock_claude_response(
+        mock_anthropic_client, 
+        invalid_response
+    )
+
+    with pytest.raises(RuntimeError, match="Claude returned invalid JSON"):
+        ai_reviewer.review_pr(sample_diff, default_config)
+
+
+def test_review_pr_respects_max_issues(
+    mock_anthropic_client, 
+    ai_reviewer,
+    sample_diff
+):
+    many_issues = [{
+         "title": "SQL Injection vulnerability",
+            "severity": "critical",
+            "file": "src/auth.py",
+            "line": 14,
+            "explanation": "String interpolation in SQL query allows injection attacks.",
+            "fix": "Use parameterized queries: db.execute('UPDATE users SET password=? WHERE id=?', (new_password, user_id))"
+    } for i in range(5)]
+    config = ReviewConfig(max_issues=3, max_iterations=1)
+    mock_claude_response(mock_anthropic_client, many_issues)
+
+    issues = ai_reviewer.review_pr(sample_diff, config)
+
+    assert len(issues) <=3
 
 
 def test_build_prompt_contains_diff_and_limit():
@@ -108,7 +87,6 @@ def test_build_prompt_contains_diff_and_limit():
 
     assert "some diff" in prompt
     assert "5" in prompt
-    assert "NO_ISSUES_FOUND" in prompt
 
 
 def test_review_pr_calls_claude_with_expected_params(
@@ -116,10 +94,11 @@ def test_review_pr_calls_claude_with_expected_params(
     mock_anthropic_client,
     sample_diff,
     default_config,
+    sample_issues
 ):
     mock_claude_response(
         mock_anthropic_client,
-        "NO_ISSUES_FOUND",
+        sample_issues,
     )
 
     ai_reviewer.review_pr(
@@ -138,8 +117,3 @@ def test_review_pr_calls_claude_with_expected_params(
 
     assert call.kwargs["model"] == "claude-sonnet-4-6"
     assert call.kwargs["max_tokens"] == 4096
-
-
-
-
-

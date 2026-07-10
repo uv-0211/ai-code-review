@@ -35,28 +35,11 @@ def sample_issues():
             "title": "Password stored in plaintext",
             "severity": "critical",
             "file": "src/auth.py",
-            "line": 14,
+            "line": 10,
             "explanation": "Password is stored without hashing.",
             "fix": "Hash the password before storing: bcrypt.hashpw(new_password.encode(), bcrypt.gensalt())"
         }
     ]
-
-@pytest.fixture
-def sample_claude_response():
-    return """ISSUE: SQL Injection vulnerability
-SEVERITY: critical
-FILE: src/auth.py
-LINE: 14
-EXPLANATION: String interpolation in SQL query allows injection attacks.
-FIX: Use parameterized queries.
----
-ISSUE: Password stored in plaintext
-SEVERITY: critical
-FILE: src/auth.py
-LINE: 14
-EXPLANATION: Password is stored without hashing.
-FIX: Hash the password before storing.
----"""
 
 
 @pytest.fixture
