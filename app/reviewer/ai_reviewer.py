@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import anthropic
 from pydantic import ValidationError
 from app.config import ReviewConfig
-from app.models.review import ReviewIssue, ReviewResponse
+from app.models.review import ReviewIssue, AIReviewResponse
 
 load_dotenv()
 
@@ -31,7 +31,7 @@ class AIReviewer:
         raw_text = message.content[0].text
         
         try:
-            review = ReviewResponse.model_validate_json(raw_text)
+            review = AIReviewResponse.model_validate_json(raw_text)
             review.issues = review.issues[:config.max_issues]
         except ValidationError as error:
             raise RuntimeError(f"Claude returned invalid JSON or some fields are missing") from error

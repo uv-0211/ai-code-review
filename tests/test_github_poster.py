@@ -17,13 +17,13 @@ def make_comments(*bodies) -> list:
 def test_is_reviewed_returns_false_when_no_reviews(github_poster, mock_pull):
     mock_pull.get_issue_comments.return_value = []
 
-    assert github_poster._is_reviewed(mock_pull, 1) is False
+    assert github_poster.is_reviewed(mock_pull, 1) is False
 
 
 def test_is_reviewed_returns_true_when_iteration_reached(github_poster, mock_pull):
     mock_pull.get_issue_comments.return_value = make_comments(github_poster.BOT_MARKER)
 
-    assert github_poster._is_reviewed(mock_pull, 1)
+    assert github_poster.is_reviewed(mock_pull, 1)
 
 
 def test_is_reviewed_counts_only_bot_comments(github_poster, mock_pull):
@@ -34,7 +34,7 @@ def test_is_reviewed_counts_only_bot_comments(github_poster, mock_pull):
         github_poster.BOT_MARKER,
     )
 
-    assert github_poster._is_reviewed(mock_pull, 2)
+    assert github_poster.is_reviewed(mock_pull, 2)
 
 
 def test_build_comment_without_issues(github_poster):
@@ -81,50 +81,9 @@ def test_post_review_posts_comment(
     )
 
     assert result == {
-        "posted": True,
         "num_comments": 2,
     }
     mock_pull.create_issue_comment.assert_called_once()
-
-
-def test_post_review_skips_existing_review(
-    mock_github_client, 
-    github_poster, 
-    sample_issues, 
-    mock_pull
-):
-    mock_pull.get_issue_comments.return_value = make_comments(
-        github_poster.BOT_MARKER
-    )
-    mock_github_client.get_pull_request.return_value = mock_pull
-
-    result = github_poster.post_review(
-        PR_URL,
-        sample_issues,
-    )
-
-    assert result["posted"] is False
-    mock_pull.create_issue_comment.assert_not_called()
-
-
-def test_post_review_allows_second_iteration(
-    mock_github_client, 
-    github_poster, 
-    sample_issues, 
-    mock_pull
-):
-    mock_pull.get_issue_comments.return_value = make_comments(
-        github_poster.BOT_MARKER
-    )
-    mock_github_client.get_pull_request.return_value = mock_pull
-
-    result = github_poster.post_review(
-        PR_URL,
-        sample_issues,
-        max_iteration=2,
-    )
-
-    assert result["posted"] is True
 
 
 def test_post_review_requests_correct_pr(

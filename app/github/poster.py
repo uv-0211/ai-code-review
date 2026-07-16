@@ -13,12 +13,12 @@ class GithubPoster:
         self.github = github
 
 
-    def _is_reviewed(self, pull_request: PullRequest, max_iteration: int) -> bool:
+    def is_reviewed(self, pull_request: PullRequest, max_iterations: int) -> bool:
         count = sum(
             1 for comment in pull_request.get_issue_comments()
             if self.BOT_MARKER in comment.body
         )
-        return count >= max_iteration
+        return count >= max_iterations
 
 
     def _build_comment(self, issues: list[dict]) -> str:
@@ -40,12 +40,6 @@ class GithubPoster:
 
     def post_review(self, pr_url: str, issues: list[dict], max_iteration: int = 1) -> dict:
         pull_request: PullRequest = self.github.get_pull_request(pr_url)
-
-        if self._is_reviewed(pull_request, max_iteration):
-            return { 
-                "posted": False,
-                "reason": f"Iteration limit reached (max {max_iteration})"
-            }
-
         pull_request.create_issue_comment(self._build_comment(issues))
-        return {"posted": True, "num_comments": len(issues)}
+
+        return {"num_comments": len(issues)}
