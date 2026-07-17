@@ -49,8 +49,7 @@ class GithubClient:
             raise ValueError(f"GitHub API error: {e.data.get('message', str(e))}")
 
 
-    def get_pr_diff(self, pr_url: str) -> str:
-        pull_request = self.get_pull_request(pr_url)
+    def get_pr_diff(self, pull_request: PullRequest) -> str:
         files = pull_request.get_files()
         diff_parts = []
 

@@ -1,6 +1,7 @@
 import json
 from unittest.mock import MagicMock
 import pytest
+from pydantic import ValidationError
 from app.config import ReviewConfig
 from app.models.review import ReviewIssue
 from app.reviewer.ai_reviewer import AIReviewer
@@ -54,7 +55,7 @@ def test_review_pr_invalid_response(
         invalid_response
     )
 
-    with pytest.raises(RuntimeError, match="Claude returned invalid JSON"):
+    with pytest.raises(ValidationError):
         ai_reviewer.review_pr(sample_diff, default_config)
 
 

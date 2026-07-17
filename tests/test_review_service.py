@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from github import GithubException
 from pydantic import ValidationError
 from app.config import ReviewConfig
+from app.models.github import PostResult
 from app.models.review import ReviewIssue
 from app.services.review_service import get_review_service
 
@@ -43,8 +44,11 @@ def test_review_returns_response_when_not_posting(
     assert result.issues == issues
     assert result.diff_length == len("some diff")
     assert result.is_posted is False
-    assert result.post_result == {}
+    assert result.post_result is None
     mock_github_poster.post_review.assert_not_called()
+    mock_github_client.get_pr_diff.assert_called_once_with(
+        mock_github_client.get_pull_request.return_value
+    )
     mock_ai_reviewer.review_pr.assert_called_once_with(
         "some diff",
         ReviewConfig(
@@ -66,16 +70,16 @@ def test_review_posts_when_should_post_to_pr_true(
     mock_github_client.get_pr_diff.return_value = "some diff"
     issues = [make_review_issue()]
     mock_ai_reviewer.review_pr.return_value = issues
-    mock_github_poster.post_review.return_value = {"num_comments": 1}
+    mock_github_poster.post_review.return_value = PostResult(num_comments=1)
     request = make_review_request(should_post_to_pr=True, max_iterations=2)
 
     result = review_service.review(request)
 
     mock_github_poster.post_review.assert_called_once_with(
-        request.pr_url, issues
+        mock_github_client.get_pull_request.return_value, issues
     )
     assert result.is_posted is True
-    assert result.post_result == {"num_comments": 1}
+    assert result.post_result == PostResult(num_comments=1)
 
 
 def test_review_returns_early_when_iteration_limit_reached(
@@ -93,10 +97,10 @@ def test_review_returns_early_when_iteration_limit_reached(
     assert result.issues == []
     assert result.diff_length == 0
     assert result.is_posted is False
-    assert result.post_result == {
-        "num_comments": 0,
-        "reason": "Iteration limit reached (max 3)",
-    }
+    assert result.post_result == PostResult(
+        num_comments=0,
+        reason="Iteration limit reached (max 3)",
+    )
     mock_github_client.get_pr_diff.assert_not_called()
     mock_ai_reviewer.review_pr.assert_not_called()
 
@@ -206,18 +210,39 @@ def test_review_raises_500_on_unexpected_error(
 
 
 def test_get_review_service_wires_dependencies():
-    with (
-        patch("app.services.review_service.GithubClient") as mock_client_cls,
-        patch("app.services.review_service.GithubPoster") as mock_poster_cls,
-        patch("app.services.review_service.AIReviewer") as mock_reviewer_cls,
-    ):
-        mock_client = mock_client_cls.return_value
-        mock_poster = mock_poster_cls.return_value
-        mock_reviewer = mock_reviewer_cls.return_value
+    get_review_service.cache_clear()
+    try:
+        with (
+            patch("app.services.review_service.GithubClient") as mock_client_cls,
+            patch("app.services.review_service.GithubPoster") as mock_poster_cls,
+            patch("app.services.review_service.AIReviewer") as mock_reviewer_cls,
+        ):
+            mock_client = mock_client_cls.return_value
+            mock_poster = mock_poster_cls.return_value
+            mock_reviewer = mock_reviewer_cls.return_value
 
-        service = get_review_service()
+            service = get_review_service()
 
-        mock_poster_cls.assert_called_once_with(mock_client)
-        assert service.github_client is mock_client
-        assert service.github_poster is mock_poster
-        assert service.ai_reviewer is mock_reviewer
+            mock_poster_cls.assert_called_once_with()
+            assert service.github_client is mock_client
+            assert service.github_poster is mock_poster
+            assert service.ai_reviewer is mock_reviewer
+    finally:
+        get_review_service.cache_clear()
+
+
+def test_get_review_service_reuses_cached_instance():
+    get_review_service.cache_clear()
+    try:
+        with (
+            patch("app.services.review_service.GithubClient") as mock_client_cls,
+            patch("app.services.review_service.GithubPoster"),
+            patch("app.services.review_service.AIReviewer"),
+        ):
+            first = get_review_service()
+            second = get_review_service()
+
+            assert first is second
+            mock_client_cls.assert_called_once()
+    finally:
+        get_review_service.cache_clear()

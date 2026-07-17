@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 import pytest
-
-PR_URL = "https://github.com/owner/repo/pull/1"
+from github import GithubException
+from app.models.github import PostResult
 
 def make_comments(*bodies) -> list:
     comments = []
@@ -69,45 +69,23 @@ def test_build_comment_uses_emoji_for_each_severity(
 
 
 def test_post_review_posts_comment(
-    mock_github_client,
     github_poster,
     sample_review_issues,
     mock_pull,
 ):
-    mock_pull.get_issue_comments.return_value = []
-    mock_github_client.get_pull_request.return_value = mock_pull
+    result = github_poster.post_review(mock_pull, sample_review_issues)
 
-    result = github_poster.post_review(
-        PR_URL,
-        sample_review_issues,
-    )
-
-    assert result == {
-        "num_comments": 2,
-    }
+    assert result == PostResult(num_comments=2)
     mock_pull.create_issue_comment.assert_called_once()
 
 
-def test_post_review_requests_correct_pr(
-    mock_github_client, 
-    github_poster, 
-    mock_pull
-):
-    mock_github_client.get_pull_request.return_value = mock_pull
-    mock_pull.get_issue_comments.return_value = []
-
-    github_poster.post_review(PR_URL, [])
-
-    mock_github_client.get_pull_request.assert_called_once_with(PR_URL)
-
-
-def test_post_review_propagates_github_error(
+def test_post_review_propagates_comment_error(
     github_poster,
-    mock_github_client,
+    mock_pull,
 ):
-    mock_github_client.get_pull_request.side_effect = ValueError(
-        "Repo or PR not found"
+    mock_pull.create_issue_comment.side_effect = GithubException(
+        403, {"message": "Forbidden"}, None
     )
 
-    with pytest.raises(ValueError):
-        github_poster.post_review(PR_URL, [])
+    with pytest.raises(GithubException):
+        github_poster.post_review(mock_pull, [])

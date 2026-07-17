@@ -1,5 +1,6 @@
 from typing import Literal
 from pydantic import BaseModel, Field
+from app.models.github import PostResult
 
 class ReviewIssue(BaseModel):
     title: str
@@ -18,7 +19,7 @@ class ReviewResponse(BaseModel):
     issues: list[ReviewIssue]
     diff_length: int = 0
     is_posted: bool = False
-    post_result: dict = {}
+    post_result: PostResult | None = None
 
 class ReviewRequest(BaseModel):
     pr_url: str

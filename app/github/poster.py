@@ -1,5 +1,5 @@
 from github.PullRequest import PullRequest
-from app.github.client import GithubClient
+from app.models.github import PostResult
 from app.models.review import ReviewIssue
 
 class GithubPoster:
@@ -9,9 +9,6 @@ class GithubPoster:
         "warning": "⚠️",
         "suggestion": "💡",
     }
-
-    def __init__(self, github: GithubClient):
-        self.github = github
 
 
     def is_reviewed(self, pull_request: PullRequest, max_iterations: int) -> bool:
@@ -31,7 +28,7 @@ class GithubPoster:
         for i, issue in enumerate(issues, 1):
             emoji = self.SEVERITY_EMOJI[issue.severity]
             lines.append(f"### {emoji} [{i}] {issue.title}")
-            lines.append(f"**File:** `{issue.file}`")
+            lines.append(f"**File:** `{issue.file}` - Line `{issue.line}`")
             lines.append(f"\n**Issue:** {issue.explanation}")
             lines.append(f"\n**Fix:** {issue.fix}\n")
             lines.append("---")
@@ -39,8 +36,7 @@ class GithubPoster:
         return "\n".join(lines)
 
 
-    def post_review(self, pr_url: str, issues: list[ReviewIssue]) -> dict:
-        pull_request: PullRequest = self.github.get_pull_request(pr_url)
+    def post_review(self, pull_request: PullRequest, issues: list[ReviewIssue]) -> PostResult:
         pull_request.create_issue_comment(self._build_comment(issues))
 
-        return {"num_comments": len(issues)}
+        return PostResult(num_comments=len(issues))

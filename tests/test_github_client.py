@@ -16,6 +16,7 @@ def setup_mock_pr(mock_github, files):
     mock_pull.get_files.return_value = files
 
     mock_github.return_value.get_repo.return_value.get_pull.return_value = mock_pull
+    return mock_pull
 
 
 def test_parse_pr_url_valid():
@@ -40,9 +41,9 @@ def test_parse_pr_url_invalid(bad_url):
 
 def test_get_pr_diff_normal(mock_github, github_client):
     mock_file = MockFile("src/auth.py", "@@ -1,3 +1,4 @@\n+new line")
-    setup_mock_pr(mock_github, [mock_file])
+    mock_pull = setup_mock_pr(mock_github, [mock_file])
 
-    diff = github_client.get_pr_diff(PR_URL)
+    diff = github_client.get_pr_diff(mock_pull)
 
     assert "src/auth.py" in diff
     assert "@@ -1,3 +1,4 @@" in diff
@@ -51,40 +52,40 @@ def test_get_pr_diff_normal(mock_github, github_client):
 def test_get_pr_diff_skips_binary_files(mock_github, github_client):
     binary_file = MockFile("assets/logo.png", None)
     text_file = MockFile("src/main.py", "@@ -1 +1 @@\n+code")
-    setup_mock_pr(mock_github, [binary_file, text_file])
+    mock_pull = setup_mock_pr(mock_github, [binary_file, text_file])
 
-    diff = github_client.get_pr_diff(PR_URL)
+    diff = github_client.get_pr_diff(mock_pull)
 
     assert "logo.png" not in diff
     assert "src/main.py" in diff
 
 
 def test_get_pr_diff_empty_pr(mock_github, github_client):
-    setup_mock_pr(mock_github, [])
+    mock_pull = setup_mock_pr(mock_github, [])
 
     with pytest.raises(ValueError, match="PR is empty"):
-        github_client.get_pr_diff(PR_URL)
+        github_client.get_pr_diff(mock_pull)
 
 
 def test_get_pr_diff_filters_generated_files(mock_github, github_client):
     lock_file = MockFile("package-lock.json", "@@ -1 +1 @@\n+something")
     real_file = MockFile("src/app.py", "@@ -1 +1 @@\n+code")
-    setup_mock_pr(mock_github, [lock_file, real_file])
+    mock_pull = setup_mock_pr(mock_github, [lock_file, real_file])
 
-    diff = github_client.get_pr_diff(PR_URL)
-    
+    diff = github_client.get_pr_diff(mock_pull)
+
     assert "package-lock.json" not in diff
     assert "src/app.py" in diff
 
 
 def test_get_pr_diff_all_files_ignored(mock_github, github_client):
-    setup_mock_pr(mock_github, [
+    mock_pull = setup_mock_pr(mock_github, [
         MockFile("assets/logo.png", None),
         MockFile("package-lock.json", "@@ -1 +1 @@\n+something"),
     ])
 
     with pytest.raises(ValueError, match="PR is empty"):
-        github_client.get_pr_diff(PR_URL)
+        github_client.get_pr_diff(mock_pull)
 
 
 def test_get_pull_request_returns_pull_request(

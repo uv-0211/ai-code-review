@@ -1,3 +1,4 @@
+from functools import lru_cache
 import anthropic
 from fastapi import HTTPException
 from github import GithubException
@@ -10,9 +11,10 @@ from app.github.poster import GithubPoster
 from app.reviewer.ai_reviewer import AIReviewer
 
 
+@lru_cache
 def get_review_service():
     github_client = GithubClient()
-    github_poster = GithubPoster(github_client)
+    github_poster = GithubPoster()
     ai_reviewer = AIReviewer()
 
     return ReviewService(
@@ -40,26 +42,26 @@ class ReviewService:
 
             if self.github_poster.is_reviewed(pull_request, request.max_iterations):
                 return ReviewResponse(
-                    issues=[], 
+                    issues=[],
                     diff_length=0,
                     is_posted=False,
-                    post_result={
-                        "num_comments": 0,
-                        "reason": f"Iteration limit reached (max {request.max_iterations})"
-                    },
+                    post_result=PostResult(
+                        num_comments=0,
+                        reason=f"Iteration limit reached (max {request.max_iterations})",
+                    ),
                 )
 
-            diff = self.github_client.get_pr_diff(request.pr_url)
+            diff = self.github_client.get_pr_diff(pull_request)
             config = ReviewConfig(
                 max_issues=request.max_issues,
                 max_iterations=request.max_iterations,
             )
             issues = self.ai_reviewer.review_pr(diff, config)
 
-            post_result: PostResult = (
-                self.github_poster.post_review(request.pr_url, issues)
+            post_result: PostResult | None = (
+                self.github_poster.post_review(pull_request, issues)
                 if request.should_post_to_pr
-                else {}
+                else None
             )
 
             return ReviewResponse(

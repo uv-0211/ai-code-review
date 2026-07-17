@@ -77,8 +77,8 @@ def mock_github_client():
     return MagicMock()
 
 @pytest.fixture
-def github_poster(mock_github_client):
-    return GithubPoster(mock_github_client)
+def github_poster():
+    return GithubPoster()
 
 @pytest.fixture
 def mock_pull():
