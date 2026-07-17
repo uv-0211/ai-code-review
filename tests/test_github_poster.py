@@ -46,30 +46,32 @@ def test_build_comment_without_issues(github_poster):
 
 def test_build_comment_with_issues(
     github_poster,
-    sample_issues,
+    sample_review_issues,
 ):
-    comment = github_poster._build_comment(sample_issues)
+    comment = github_poster._build_comment(sample_review_issues)
 
     assert "SQL Injection vulnerability" in comment
     assert "Password stored in plaintext" in comment
     assert github_poster.SEVERITY_EMOJI["critical"] in comment
 
 
-def test_build_comment_unknown_severity(github_poster):
-    comment = github_poster._build_comment([
-        {
-            "title": "Issue",
-            "severity": "unknown"
-        }
-    ])
+@pytest.mark.parametrize("severity", ["critical", "warning", "suggestion"])
+def test_build_comment_uses_emoji_for_each_severity(
+    github_poster,
+    make_review_issue,
+    severity,
+):
+    issue = make_review_issue(severity=severity)
 
-    assert "💡" in comment
+    comment = github_poster._build_comment([issue])
+
+    assert github_poster.SEVERITY_EMOJI[severity] in comment
 
 
 def test_post_review_posts_comment(
-    mock_github_client, 
-    github_poster, 
-    sample_issues, 
+    mock_github_client,
+    github_poster,
+    sample_review_issues,
     mock_pull,
 ):
     mock_pull.get_issue_comments.return_value = []
@@ -77,7 +79,7 @@ def test_post_review_posts_comment(
 
     result = github_poster.post_review(
         PR_URL,
-        sample_issues,
+        sample_review_issues,
     )
 
     assert result == {

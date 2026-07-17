@@ -4,6 +4,8 @@ from app.github.client import GithubClient
 from app.github.poster import GithubPoster
 from app.config import ReviewConfig
 from app.reviewer.ai_reviewer import AIReviewer
+from app.services.review_service import ReviewService
+from app.models.review import ReviewIssue, ReviewRequest
 
 @pytest.fixture
 def default_config():
@@ -41,6 +43,25 @@ def sample_issues():
         }
     ]
 
+@pytest.fixture
+def sample_review_issues(sample_issues):
+    return [ReviewIssue(**issue) for issue in sample_issues]
+
+@pytest.fixture
+def make_review_issue():
+    def _make(**overrides):
+        defaults = dict(
+            title="SQL Injection vulnerability",
+            severity="critical",
+            file="src/auth.py",
+            line=14,
+            explanation="String interpolation in SQL query allows injection attacks.",
+            fix="Use parameterized queries.",
+        )
+        defaults.update(overrides)
+        return ReviewIssue(**defaults)
+    return _make
+
 
 @pytest.fixture
 def mock_github():
@@ -70,3 +91,27 @@ def mock_anthropic_client():
 @pytest.fixture
 def ai_reviewer(mock_anthropic_client):
     return AIReviewer(mock_anthropic_client)
+
+@pytest.fixture
+def mock_github_poster():
+    return MagicMock()
+
+@pytest.fixture
+def mock_ai_reviewer():
+    return MagicMock()
+
+@pytest.fixture
+def review_service(mock_github_client, mock_github_poster, mock_ai_reviewer):
+    return ReviewService(
+        github_client=mock_github_client,
+        github_poster=mock_github_poster,
+        ai_reviewer=mock_ai_reviewer,
+    )
+
+@pytest.fixture
+def make_review_request():
+    def _make(**overrides):
+        defaults = {"pr_url": "https://github.com/owner/repo/pull/1"}
+        defaults.update(overrides)
+        return ReviewRequest(**defaults)
+    return _make

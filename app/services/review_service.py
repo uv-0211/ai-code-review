@@ -2,6 +2,7 @@ import anthropic
 from fastapi import HTTPException
 from github import GithubException
 from pydantic import ValidationError
+from app.config import ReviewConfig
 from app.models.github import PostResult
 from app.models.review import ReviewRequest, ReviewResponse
 from app.github.client import GithubClient
@@ -49,11 +50,14 @@ class ReviewService:
                 )
 
             diff = self.github_client.get_pr_diff(request.pr_url)
-            issues = self.ai_reviewer.review_pr(diff, {"max_issues": request.max_issues,
-                "max_iterations":request.max_iterations})
+            config = ReviewConfig(
+                max_issues=request.max_issues,
+                max_iterations=request.max_iterations,
+            )
+            issues = self.ai_reviewer.review_pr(diff, config)
 
             post_result: PostResult = (
-                self.github_poster.post_review(request.pr_url, issues, request.max_iterations)
+                self.github_poster.post_review(request.pr_url, issues)
                 if request.should_post_to_pr
                 else {}
             )
@@ -64,15 +68,16 @@ class ReviewService:
                 is_posted=request.should_post_to_pr,
                 post_result=post_result
             )
-        except ValueError as e:
-            raise HTTPException(
-                400, 
-                detail=str(e)
-            )
+            
         except ValidationError:
             raise HTTPException(
                 502,
                 detail="Invalid AI response",
+            )
+        except ValueError as e:
+            raise HTTPException(
+                400,
+                detail=str(e)
             )
         except anthropic.APIError:
             raise HTTPException(
