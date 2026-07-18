@@ -1,4 +1,3 @@
-from functools import lru_cache
 import anthropic
 from fastapi import HTTPException
 from github import GithubException
@@ -11,8 +10,7 @@ from app.github.poster import GithubPoster
 from app.reviewer.ai_reviewer import AIReviewer
 
 
-@lru_cache
-def get_review_service():
+def build_review_service() -> "ReviewService":
     github_client = GithubClient()
     github_poster = GithubPoster()
     ai_reviewer = AIReviewer()

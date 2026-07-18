@@ -1,10 +1,18 @@
 import os
-from fastapi import Depends, FastAPI
+from contextlib import asynccontextmanager
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.models.review import ReviewRequest, ReviewResponse
-from app.services.review_service import ReviewService, get_review_service
+from app.services.review_service import ReviewService, build_review_service
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.review_service = build_review_service()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 allowed_origins = [
     origin.strip()
@@ -15,9 +23,14 @@ allowed_origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
 )
+
+
+def get_review_service(request: Request) -> ReviewService:
+    return request.app.state.review_service
 
 
 @app.post("/review", response_model=ReviewResponse)
@@ -26,4 +39,3 @@ async def review(
     service: ReviewService = Depends(get_review_service)
 ):
     return service.review(request)
-    

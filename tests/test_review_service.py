@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from app.config import ReviewConfig
 from app.models.github import PostResult
 from app.models.review import ReviewIssue
-from app.services.review_service import get_review_service
+from app.services.review_service import build_review_service
 
 PR_URL = "https://github.com/owner/repo/pull/1"
 
@@ -209,40 +209,19 @@ def test_review_raises_500_on_unexpected_error(
     assert error.value.detail == "Server error"
 
 
-def test_get_review_service_wires_dependencies():
-    get_review_service.cache_clear()
-    try:
-        with (
-            patch("app.services.review_service.GithubClient") as mock_client_cls,
-            patch("app.services.review_service.GithubPoster") as mock_poster_cls,
-            patch("app.services.review_service.AIReviewer") as mock_reviewer_cls,
-        ):
-            mock_client = mock_client_cls.return_value
-            mock_poster = mock_poster_cls.return_value
-            mock_reviewer = mock_reviewer_cls.return_value
+def test_build_review_service_wires_dependencies():
+    with (
+        patch("app.services.review_service.GithubClient") as mock_client_cls,
+        patch("app.services.review_service.GithubPoster") as mock_poster_cls,
+        patch("app.services.review_service.AIReviewer") as mock_reviewer_cls,
+    ):
+        mock_client = mock_client_cls.return_value
+        mock_poster = mock_poster_cls.return_value
+        mock_reviewer = mock_reviewer_cls.return_value
 
-            service = get_review_service()
+        service = build_review_service()
 
-            mock_poster_cls.assert_called_once_with()
-            assert service.github_client is mock_client
-            assert service.github_poster is mock_poster
-            assert service.ai_reviewer is mock_reviewer
-    finally:
-        get_review_service.cache_clear()
-
-
-def test_get_review_service_reuses_cached_instance():
-    get_review_service.cache_clear()
-    try:
-        with (
-            patch("app.services.review_service.GithubClient") as mock_client_cls,
-            patch("app.services.review_service.GithubPoster"),
-            patch("app.services.review_service.AIReviewer"),
-        ):
-            first = get_review_service()
-            second = get_review_service()
-
-            assert first is second
-            mock_client_cls.assert_called_once()
-    finally:
-        get_review_service.cache_clear()
+        mock_poster_cls.assert_called_once_with()
+        assert service.github_client is mock_client
+        assert service.github_poster is mock_poster
+        assert service.ai_reviewer is mock_reviewer
