@@ -34,7 +34,7 @@ def get_review_service(request: Request) -> ReviewService:
 
 
 @app.post("/review", response_model=ReviewResponse)
-async def review(
+def review(
     request: ReviewRequest,
     service: ReviewService = Depends(get_review_service)
 ):

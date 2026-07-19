@@ -1,9 +1,12 @@
+import time
+from concurrent.futures import ThreadPoolExecutor
 import pytest
 from fastapi.testclient import TestClient
 from app.api import app
 from app.models.review import ReviewResponse
 
 PR_URL = "https://github.com/owner/repo/pull/1"
+SLEEP_SECONDS = 0.3
 
 
 class FakeReviewService:
@@ -31,6 +34,29 @@ def test_review_service_is_built_once_and_reused_across_requests(monkeypatch):
 
     assert len(build_calls) == 1
     assert fake_service.calls == 2
+
+
+class SlowFakeReviewService:
+    def review(self, request):
+        time.sleep(SLEEP_SECONDS)
+        return ReviewResponse(issues=[])
+
+
+def test_review_endpoint_does_not_block_other_requests(monkeypatch):
+    monkeypatch.setattr("app.api.build_review_service", lambda: SlowFakeReviewService())
+
+    with TestClient(app) as client:
+        start = time.monotonic()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(client.post, "/review", json={"pr_url": PR_URL})
+                for _ in range(2)
+            ]
+            for future in futures:
+                assert future.result().status_code == 200
+        elapsed = time.monotonic() - start
+
+    assert elapsed < SLEEP_SECONDS * 1.5
 
 
 def test_startup_fails_fast_when_review_service_cannot_be_built(monkeypatch):
