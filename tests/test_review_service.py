@@ -2,7 +2,6 @@ from unittest.mock import patch
 import httpx
 import anthropic
 import pytest
-from fastapi import HTTPException
 from github import GithubException
 from pydantic import ValidationError
 from app.config import ReviewConfig
@@ -105,7 +104,7 @@ def test_review_returns_early_when_iteration_limit_reached(
     mock_ai_reviewer.review_pr.assert_not_called()
 
 
-def test_review_raises_400_when_pr_not_found(
+def test_review_propagates_value_error_when_pr_not_found(
     review_service,
     mock_github_client,
     make_review_request,
@@ -115,14 +114,11 @@ def test_review_raises_400_when_pr_not_found(
     )
     request = make_review_request()
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(ValueError, match="Repo or PR not found"):
         review_service.review(request)
 
-    assert error.value.status_code == 400
-    assert error.value.detail == "Repo or PR not found"
 
-
-def test_review_raises_400_when_pr_is_empty(
+def test_review_propagates_value_error_when_pr_is_empty(
     review_service,
     mock_github_client,
     mock_github_poster,
@@ -132,14 +128,11 @@ def test_review_raises_400_when_pr_is_empty(
     mock_github_client.get_pr_diff.side_effect = ValueError("PR is empty")
     request = make_review_request()
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(ValueError, match="PR is empty"):
         review_service.review(request)
 
-    assert error.value.status_code == 400
-    assert error.value.detail == "PR is empty"
 
-
-def test_review_raises_502_on_invalid_ai_response(
+def test_review_propagates_validation_error_on_invalid_ai_response(
     review_service,
     mock_github_client,
     mock_github_poster,
@@ -151,14 +144,11 @@ def test_review_raises_502_on_invalid_ai_response(
     mock_ai_reviewer.review_pr.side_effect = make_validation_error()
     request = make_review_request()
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(ValidationError):
         review_service.review(request)
 
-    assert error.value.status_code == 502
-    assert error.value.detail == "Invalid AI response"
 
-
-def test_review_raises_503_on_claude_api_error(
+def test_review_propagates_anthropic_api_error(
     review_service,
     mock_github_client,
     mock_github_poster,
@@ -170,14 +160,11 @@ def test_review_raises_503_on_claude_api_error(
     mock_ai_reviewer.review_pr.side_effect = make_anthropic_api_error()
     request = make_review_request()
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(anthropic.APIError):
         review_service.review(request)
 
-    assert error.value.status_code == 503
-    assert error.value.detail == "Claude API unavailable"
 
-
-def test_review_raises_502_on_github_exception(
+def test_review_propagates_github_exception(
     review_service,
     mock_github_client,
     make_review_request,
@@ -187,26 +174,8 @@ def test_review_raises_502_on_github_exception(
     )
     request = make_review_request()
 
-    with pytest.raises(HTTPException) as error:
+    with pytest.raises(GithubException):
         review_service.review(request)
-
-    assert error.value.status_code == 502
-    assert error.value.detail == "GitHub API error"
-
-
-def test_review_raises_500_on_unexpected_error(
-    review_service,
-    mock_github_client,
-    make_review_request,
-):
-    mock_github_client.get_pull_request.side_effect = RuntimeError("boom")
-    request = make_review_request()
-
-    with pytest.raises(HTTPException) as error:
-        review_service.review(request)
-
-    assert error.value.status_code == 500
-    assert error.value.detail == "Server error"
 
 
 def test_build_review_service_wires_dependencies():

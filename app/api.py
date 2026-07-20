@@ -1,7 +1,10 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, Request
+import anthropic
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from github import GithubException
+from pydantic import ValidationError
 from app.models.review import ReviewRequest, ReviewResponse
 from app.services.review_service import ReviewService, build_review_service
 
@@ -38,4 +41,15 @@ def review(
     request: ReviewRequest,
     service: ReviewService = Depends(get_review_service)
 ):
-    return service.review(request)
+    try:
+        return service.review(request)
+    except ValidationError:
+        raise HTTPException(502, detail="Invalid AI response")
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+    except anthropic.APIError:
+        raise HTTPException(503, detail="Claude API unavailable")
+    except GithubException:
+        raise HTTPException(502, detail="GitHub API error")
+    except Exception:
+        raise HTTPException(500, detail="Server error")
