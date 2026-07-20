@@ -23,7 +23,7 @@ class GithubPoster:
         if not issues:
             return f"{self.BOT_MARKER}\n✅ **AI Code Review** - No issues found during this iteration."
 
-        lines = [f"{self.BOT_MARKER}", "## 🤖 AI Code Review\n"]
+        lines = [f"{self.BOT_MARKER}", "## AI Code Review\n"]
 
         for i, issue in enumerate(issues, 1):
             emoji = self.SEVERITY_EMOJI[issue.severity]
