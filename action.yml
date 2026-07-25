@@ -1,0 +1,50 @@
+name: 'AI Code Review'
+description: 'Automatically reviews pull requests using Claude and posts comments.'
+
+inputs:
+  pr-url:
+    description: 'URL of the pull request to review'
+    required: true
+  github-token:
+    description: 'GitHub token with permission to read the PR and post comments'
+    required: true
+  anthropic-api-key:
+    description: 'Anthropic API key used to run the review'
+    required: true
+  # Defaults below are kept in sync manually with ReviewRequest in
+  # app/models/review.py — update both if either one changes.
+  max-issues:
+    description: 'Maximum number of issues to report'
+    required: false
+    default: '10'
+  max-iterations:
+    description: 'Maximum number of review iterations before the bot stops re-reviewing'
+    required: false
+    default: '1'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: uv sync --frozen
+
+    - name: Run review
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: uv run python -m app.cli
+      env:
+        PR_URL: ${{ inputs.pr-url }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        MAX_ISSUES: ${{ inputs.max-issues }}
+        MAX_ITERATIONS: ${{ inputs.max-iterations }}

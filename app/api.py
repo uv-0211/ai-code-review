@@ -1,9 +1,13 @@
+import logging
 import os
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from app.error_mapping import classify_error
 from app.models.review import ReviewRequest, ReviewResponse
 from app.services.review_service import ReviewService, build_review_service
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -38,4 +42,10 @@ def review(
     request: ReviewRequest,
     service: ReviewService = Depends(get_review_service)
 ):
-    return service.review(request)
+    try:
+        return service.review(request)
+    except Exception as exc:
+        status, message = classify_error(exc)
+        if status == 500:
+            logger.exception("Unexpected error during review")
+        raise HTTPException(status, detail=message)
