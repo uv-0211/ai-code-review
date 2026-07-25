@@ -1,12 +1,13 @@
+import logging
 import os
 from contextlib import asynccontextmanager
-import anthropic
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from github import GithubException
-from pydantic import ValidationError
+from app.error_mapping import classify_error
 from app.models.review import ReviewRequest, ReviewResponse
 from app.services.review_service import ReviewService, build_review_service
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -43,13 +44,8 @@ def review(
 ):
     try:
         return service.review(request)
-    except ValidationError:
-        raise HTTPException(502, detail="Invalid AI response")
-    except ValueError as e:
-        raise HTTPException(400, detail=str(e))
-    except anthropic.APIError:
-        raise HTTPException(503, detail="Claude API unavailable")
-    except GithubException:
-        raise HTTPException(502, detail="GitHub API error")
-    except Exception:
-        raise HTTPException(500, detail="Server error")
+    except Exception as exc:
+        status, message = classify_error(exc)
+        if status == 500:
+            logger.exception("Unexpected error during review")
+        raise HTTPException(status, detail=message)
