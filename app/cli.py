@@ -1,8 +1,15 @@
 import os
 import sys
+import anthropic
+from github import GithubException
 from pydantic import ValidationError
+from app.error_mapping import classify_error
 from app.models.review import ReviewRequest
 from app.services.review_service import build_review_service
+
+CYAN = "\033[36m"
+GREEN = "\033[32m"
+RESET = "\033[0m"
 
 
 def main() -> None:
@@ -26,8 +33,15 @@ def main() -> None:
         sys.exit(f"Invalid configuration: {e}")
 
     service = build_review_service()
-    response = service.review(request)
 
+    print(f"{CYAN}Running review for {pr_url}...{RESET}")
+    try:
+        response = service.review(request)
+    except (ValidationError, ValueError, anthropic.APIError, GithubException) as exc:
+        _, message = classify_error(exc)
+        sys.exit(message)
+
+    print(f"{GREEN}Review complete — results below:{RESET}")
     print(f"Found {len(response.issues)} issue(s).")
     for issue in response.issues:
         print(f"- [{issue.severity}] {issue.file}:{issue.line} — {issue.title}")

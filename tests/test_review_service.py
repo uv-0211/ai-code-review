@@ -1,27 +1,14 @@
 from unittest.mock import patch
-import httpx
 import anthropic
 import pytest
 from github import GithubException
 from pydantic import ValidationError
 from app.config import ReviewConfig
 from app.models.github import PostResult
-from app.models.review import ReviewIssue
 from app.services.review_service import build_review_service
+from tests.error_helpers import make_anthropic_api_error, make_validation_error
 
 PR_URL = "https://github.com/owner/repo/pull/1"
-
-
-def make_validation_error():
-    try:
-        ReviewIssue()
-    except ValidationError as error:
-        return error
-
-
-def make_anthropic_api_error():
-    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
-    return anthropic.APIError("boom", request, body=None)
 
 
 def test_review_returns_response_when_not_posting(

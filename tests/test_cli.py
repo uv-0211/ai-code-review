@@ -1,6 +1,8 @@
+from github import GithubException
 import pytest
 from app.cli import main
 from app.models.review import ReviewResponse
+from tests.error_helpers import make_anthropic_api_error, make_validation_error
 
 PR_URL = "https://github.com/owner/repo/pull/1"
 
@@ -13,6 +15,14 @@ class FakeReviewService:
     def review(self, request):
         self.received_request = request
         return self.response
+
+
+class RaisingFakeReviewService:
+    def __init__(self, exc: Exception):
+        self._exc = exc
+
+    def review(self, request):
+        raise self._exc
 
 
 def test_main_exits_when_pr_url_missing(monkeypatch):
@@ -75,3 +85,26 @@ def test_main_posts_to_pr_and_prints_issues(monkeypatch, capsys, make_review_iss
     captured = capsys.readouterr()
     assert "Found 1 issue(s)." in captured.out
     assert issue.title in captured.out
+
+
+@pytest.mark.parametrize(
+    "exc, expected_message",
+    [
+        (ValueError("Repo or PR not found"), "Repo or PR not found"),
+        (make_validation_error(), "Invalid AI response"),
+        (make_anthropic_api_error(), "Claude API unavailable"),
+        (GithubException(500, {"message": "Internal Server Error"}, None), "GitHub API error"),
+    ],
+)
+def test_main_exits_with_clean_message_on_known_errors(
+    monkeypatch, exc, expected_message
+):
+    monkeypatch.setenv("PR_URL", PR_URL)
+    monkeypatch.setattr(
+        "app.cli.build_review_service", lambda: RaisingFakeReviewService(exc)
+    )
+
+    with pytest.raises(SystemExit) as error:
+        main()
+
+    assert error.value.code == expected_message
