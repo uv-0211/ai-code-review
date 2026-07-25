@@ -11,6 +11,8 @@ inputs:
   anthropic-api-key:
     description: 'Anthropic API key used to run the review'
     required: true
+  # Defaults below are kept in sync manually with ReviewRequest in
+  # app/models/review.py — update both if either one changes.
   max-issues:
     description: 'Maximum number of issues to report'
     required: false
