@@ -9,6 +9,7 @@ from app.services.review_service import build_review_service
 
 CYAN = "\033[36m"
 GREEN = "\033[32m"
+YELLOW = "\033[33m"
 RESET = "\033[0m"
 
 
@@ -42,9 +43,12 @@ def main() -> None:
         sys.exit(message)
 
     print(f"{GREEN}Review complete — results below:{RESET}")
-    print(f"Found {len(response.issues)} issue(s).")
-    for issue in response.issues:
-        print(f"- [{issue.severity}] {issue.file}:{issue.line} — {issue.title}")
+    if response.post_result and response.post_result.reason:
+        print(f"{YELLOW}{response.post_result.reason}{RESET}")
+    else:
+        print(f"Found {len(response.issues)} issue(s).")
+        for issue in response.issues:
+            print(f"- [{issue.severity}] {issue.file}:{issue.line} — {issue.title}")
 
 
 if __name__ == "__main__":
