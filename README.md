@@ -90,6 +90,23 @@ Set `should_post_to_pr: false` to get the issues back in the response without po
 
 Requires `GITHUB_TOKEN` and `ANTHROPIC_API_KEY` in the environment (or a `.env` file).
 
+## Evaluating review quality
+
+Unit tests (`tests/`) check that the *code* behaves correctly against a fixed, mocked Claude response. They say nothing about whether the *prompt* actually gets Claude to find real issues in real diffs. `evals/` does that — a small golden dataset of diffs with deliberately seeded, known issues, run through the real `AIReviewer` (no mocking), scored against what we expected to find.
+
+```bash
+uv run python -m evals.report
+```
+
+**This costs real Anthropic API credits and is not deterministic** — unlike `tests/`, don't run it on every commit. Run it manually when changing the prompt or model, to see whether review quality actually improved or regressed.
+
+### Reading the output
+
+- **Recall** — of everything deliberately planted across the "dirty" diffs, how much the model actually found. Higher is better.
+- **Noise on clean diffs** — issues reported on diffs that have no real problems, broken down by severity. `critical`/`warning` noise is the concerning kind (inventing serious-sounding problems that don't exist); some `suggestion`-level noise is expected — Claude tends to offer stylistic nitpicks even on clean code, which isn't the same as being wrong.
+
+The dataset lives in `evals/dataset.py` — add cases there as new failure patterns come up.
+
 ## Development
 
 ```bash
